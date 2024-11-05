@@ -43,7 +43,7 @@ if(array_key_exists('action', $_POST)){
         if ($userInfo['success'] && password_verify($password, $userInfo['password'])) {
             $_SESSION['signed_in'] = true;
             $_SESSION['username'] = $username; 
-            $_SESSION['admin'] = $userInfo['admin']; 
+            $_SESSION['admin'] = $userInfo['admin'];
             return json_encode(['success' => true, 'message' => 'Signed in successfully', 'isAdmin' => $userInfo['admin'] === 'yes']);
         } else {
             return json_encode(['success' => false, 'message' => 'Invalid credentials']);
