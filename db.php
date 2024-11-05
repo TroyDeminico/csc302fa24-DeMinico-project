@@ -43,7 +43,8 @@ function createTables(){
         $dbh->exec('create table if not exists Users('. 
             'id integer primary key autoincrement, '. 
             'username text UNIQUE, '. 
-            'password text, '. 
+            'password text, '.
+            'admin text, '. 
             'createdAt datetime default(datetime()), '.
             'updatedAt datetime default(datetime()))');
     } catch(PDOException $e){
@@ -53,15 +54,19 @@ function createTables(){
 
 // Functions for the User
 
-function addUser($username, $hashedPassword){
+function addUser($username, $hashedPassword, $admin){
     global $dbh;
     $id = null;
+
+    // set uo the admin default
+    $isAdmin = isset($admin) ? 'yes' : 'no'; 
     try {
         $statement = $dbh->prepare(
-            'insert into Users(username, password) values (:username, :password)');
+            'insert into Users(username, password, admin) values (:username, :password, :admin)');
         $statement->execute([
             ':username' => $username,
-            ':password' => $hashedPassword
+            ':password' => $hashedPassword,
+            ':admin' => $isAdmin
         ]);
 
         $id = $dbh->lastInsertId();
@@ -73,6 +78,7 @@ function addUser($username, $hashedPassword){
         'id' => $id
     ];
 }
+
 
 //Needed for sign in
 function getUserByUsername($username){
