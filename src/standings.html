@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sports Standings Page</title>
+        <style>
+            #standings-container table {
+                display: block !important;
+                visibility: visible !important;
+            }
+
+            table, tr, td, th {
+                border: 1px solid gray;
+            }
+    
+            .output {
+                width: 80em;
+                height: 10em;
+            }
+    
+            .highlight {
+                border: 2px solid lightgreen;
+            }
+    
+            .error {
+                border-color: red;
+            }
+    
+            .game-list {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+            }
+    
+            .game-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border: 1px solid #ddd;
+                padding: 10px;
+                margin-bottom: 10px;
+                border-radius: 5px;
+            }
+    
+            .team-info {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+    
+            .team-info img {
+                width: 40px;
+                height: 40px;
+            }
+
+            /* Navigation bar styling */
+            .navbar {
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+                background-color: #333;
+                padding: 10px 0;
+                color: white;
+            }
+
+            .navbar a {
+                color: white;
+                text-decoration: none;
+                padding: 10px 20px;
+                transition: background-color 0.3s;
+            }
+
+            .navbar a:hover {
+                background-color: #575757;
+                border-radius: 5px;
+            }
+        </style>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        <script>
+            $(document).ready(function () {
+                // Display username
+                $.ajax({
+                    url: 'api.php',
+                    method: 'POST',
+                    data: { action: 'getUsername' },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.success) {
+                            $('#user-name').text(`${response.username}`);
+                        } else {
+                            console.error('Error:', response.message);
+                            $('#user-name').text('Guest!');
+                        }
+                    },
+                    error: function () {
+                        console.error('Failed to fetch username.');
+                        $('#user-name').text('Welcome, Guest!');
+                    }
+                });
+
+                // get the NBA standings
+                $.ajax({
+                    url: 'api.php',
+                    method: 'POST',
+                    data: { action: 'fetchNBAStandings' },
+                    success: function (response) {
+                        console.log('Server Response:', response);
+                        if (response.success && response.data) {
+                            let standingsHTML = `
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Position</th>
+                                            <th>Team</th>
+                                            <th>Wins</th>
+                                            <th>Losses</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                            `;
+
+                            response.data.forEach(conference => {
+                                conference.data.forEach(teamData => {
+                                    const team = teamData.team;
+                                    const statistics = teamData.statistics;
+
+                                    const wins = statistics.find(stat => stat.displayName === "Wins")?.value || "N/A";
+                                    const losses = statistics.find(stat => stat.displayName === "Losses")?.value || "N/A";
+                                    const position = statistics.find(stat => stat.displayName === "Position")?.value || "N/A";
+
+                                    standingsHTML += `
+                                        <tr>
+                                            <td>${position}</td>
+                                            <td>
+                                                <img src="${team.logo || ''}" alt="${team.name}" width="30" />
+                                                ${team.displayName || team.name}
+                                            </td>
+                                            <td>${wins}</td>
+                                            <td>${losses}</td>
+                                        </tr>
+                                    `;
+                                });
+                            });
+
+                            standingsHTML += `</tbody></table>`;
+                            $('#standings-container').html(standingsHTML);
+                        } else {
+                            console.error('Invalid response structure:', response);
+                            $('#standings-container').html('<p class="error">Invalid data received.</p>');
+                        }
+                    },
+                    error: function () {
+                        $('#standings-container').html('<p class="error">Failed to fetch standings.</p>');
+                    }
+                });
+
+                // sign out button back to log in screen
+                $('#sign-out-button').click(function(e) {
+                    e.preventDefault();
+                    window.location.href = 'index.html';
+                });
+            });
+        </script>
+    </head>
+    <body>
+        <div class="navbar">
+            <a href="home.html">Home</a>
+            <a href="standings.html">Standings</a>
+            <a href="profile.html">Profile</a>
+        </div>
+        <div id="user-name" class="user-info"></div>
+        <h1>Welcome!</h1>
+        <p>You have successfully signed in.</p>
+
+        <div id="nba-highlights">
+            <h2>NBA Standings</h2>
+            <div id="standings-container"></div>
+        </div>
+
+        <div class="action-wrapper">
+            <h1>Sign Out</h1>
+            <form>
+                <input type="hidden" name="action" value="signOut"/>
+                <input id="sign-out-button" type="button" value="Sign out"/>
+            </form>
+        </div>
+    </body>
+</html>

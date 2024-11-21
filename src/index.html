@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sports App - Sign In / Sign Up</title>
+
+    <style>
+        /* General styling */
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f3f4f6;
+            font-family: Arial, sans-serif;
+        }
+
+        .form-wrapper {
+            display: flex;
+            gap: 2em; /* Space between the forms */
+        }
+
+        h1 {
+            color: rgb(166, 7, 7);
+            font-weight: 300;
+            margin-bottom: 1em;
+            text-align: center;
+        }
+
+        /* Form container styling */
+        /* AI helped with the styling for these containers */
+    
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 4em;
+            width: 350px; /* Set a fixed width for both forms */
+            text-align: center;
+            height: 300px;
+        }
+
+        .container h1 {
+            color: blue;
+        }
+
+        /* Input styling */
+        /* AI helped with the styling*/
+        input[type="text"],
+        input[type="password"],
+        input[type="submit"] {
+            width: 100%;
+            padding: 0.8em;
+            margin-top: 0.5em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        /* Output box styling */
+        .output {
+            width: 100%;
+            height: 6em;
+            margin-top: 1em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 0.5em;
+            color: #666;
+            font-family: monospace;
+        }
+
+        .error {
+            border-color: #e74c3c;
+            color: #e74c3c;
+        }
+    </style>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+    <script>
+        $(document).ready(function(){
+            $(document).on('submit', 'form', function(event){
+                var $form = $(this);
+                var $outputBox = $(this).siblings('.output');
+
+                $.ajax({
+                    url: 'api.php',
+                    data: $form.serialize(),
+                    method: 'post',
+                    success: function(data){
+                        console.log(data);
+
+                        if (!data.success) {
+                            $outputBox.addClass('error').html("Error: " + data.message);
+                        } else if (data.success && $form.find("input[name='action']").val() === 'signIn') {
+                            window.location.href = "home.html"; // Redirect to home page on successful sign-in
+                        } else {
+                            $outputBox.removeClass('error').html("Success: " + data.message);
+                        }
+                    },
+                    error: function(jqXHR, status, error){
+                        $outputBox.html("An error occurred: " + error).addClass('error');
+                    },
+                });
+
+                // Remove previous highlighting
+                $('.highlight').removeClass('highlight').removeClass('error');
+
+                event.preventDefault();
+                return false;
+            });
+        });
+    </script>
+
+</head>
+<body>
+    <h1>Sports App</h1>
+
+    <div class="form-wrapper">
+        <div class="container">
+            <h1>Sign In</h1>
+            <form>
+                <input type="hidden" name="action" value="signIn"/>
+                <input type="text" name="username" placeholder="Username" required/><br/>
+                <input type="password" name="password" placeholder="Password" required/><br/>
+                <input type="submit" value="Sign In"/>
+            </form>
+        </div>
+        <div class="container">
+            <h1>Sign Up</h1>
+            <form>
+                <input type="hidden" name="action" value="addUser"/>
+                <input type="text" name="username" placeholder="Username" required/><br/>
+                <input type="password" name="password" placeholder="Password" required/><br/>
+                <label>
+                    <input type="checkbox" name="admin" value="yes" /> Admin?
+                </label>
+                <input type="submit" value="Sign Up"/>
+            </form>    
+        </div>
+    </div>
+
+</body>
+</html>

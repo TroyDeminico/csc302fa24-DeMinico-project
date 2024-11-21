@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Profile Page</title>
+        <style>
+            #standings-container table {
+                display: block !important;
+                visibility: visible !important;
+            }
+
+            table, tr, td, th {
+                border: 1px solid gray;
+            }
+    
+            .output {
+                width: 80em;
+                height: 10em;
+            }
+    
+            .highlight {
+                border: 2px solid lightgreen;
+            }
+    
+            .error {
+                border-color: red;
+            }
+    
+            .game-list {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+            }
+    
+            .game-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border: 1px solid #ddd;
+                padding: 10px;
+                margin-bottom: 10px;
+                border-radius: 5px;
+            }
+    
+            .team-info {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+    
+            .team-info img {
+                width: 40px;
+                height: 40px;
+            }
+            /* Navigation bar styling */
+            .navbar {
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+                background-color: #333;
+                padding: 10px 0;
+                color: white;
+            }
+
+            .navbar a {
+                color: white;
+                text-decoration: none;
+                padding: 10px 20px;
+                transition: background-color 0.3s;
+            }
+
+            .navbar a:hover {
+                background-color: #575757;
+                border-radius: 5px;
+            }
+        </style>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        <script>
+            $(document).ready(function () {
+    $('#add-favorite-team-button').click(function () {
+        // gets values from the input fields
+        const teamName = $('#favorite-team-select').val().trim();
+        const username = $('#user-name').text().trim(); // gets name from user name field
+
+        if (teamName === '') {
+            $('#message').text('Please enter a team name.').css('color', 'red');
+            return;
+        }
+
+        // the AJAX request to add the favorite team
+        $.ajax({
+            url: 'api.php',
+            method: 'POST',
+            data: {
+                action: 'addFavoriteTeam',
+                username: username, // send the username 
+                favoriteTeams: [teamName], // teamName put in an array
+            },
+            dataType: 'json',
+            success: function (response) {
+                if (response.success) {
+                    $('#message').text(response.message).css('color', 'green');
+                    $('#favorite-team-input').val(''); // makes input field empty
+                } else {
+                    $('#message').text(response.message).css('color', 'red');
+                }
+            },
+            error: function () {
+                $('#message').text('Failed to update favorite team. Please try again.').css('color', 'red');
+            }
+        });
+    });
+
+    $.ajax({
+        url: 'api.php',
+        method: 'POST',
+        data: { action: 'getUsername' },
+        dataType: 'json',
+        success: function (response) {
+            if (response.success) {
+                $('#user-name').text(`${response.username}`);
+            } else {
+                console.error('Error:', response.message);
+                $('#user-name').text('Guest!');
+            }
+        },
+        error: function () {
+            console.error('Failed to fetch username.');
+            $('#user-name').text('Welcome, Guest!');
+        }
+    });
+
+    // lets them sign out properly
+    $('#sign-out-button').click(function (e) {
+        e.preventDefault();
+        window.location.href = 'index.html';
+    });
+});
+
+
+    $.ajax({
+        url: 'api.php',
+        method: 'POST',
+        data: { action: 'getUsername' },
+        dataType: 'json',
+        success: function (response) {
+            if (response.success) {
+                $('#user-name').text(`${response.username}`);
+            } else {
+                console.error('Error:', response.message);
+                $('#user-name').text('Guest!');
+            }
+        },
+        error: function () {
+            console.error('Failed to fetch username.');
+            $('#user-name').text('Welcome, Guest!');
+        }
+    });
+
+    function fetchFavoriteTeamStats(teamName, teamAbbreviation) {
+    $.ajax({
+        url: 'api.php',
+        method: 'POST',
+        data: {
+            action: 'getFavTeamStats',
+            teamName: teamName,
+            teamAbbreviation: teamAbbreviation
+        },
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                console.log('Team Stats:', response.data);
+                $('#team-stats').text(JSON.stringify(response.data, null, 2));
+            } else {
+                console.error('Error:', response.message);
+                $('#team-stats').text(response.message);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX Error:', error);
+            $('#team-stats').text('Failed to fetch team stats. Please try again.');
+        }
+    });
+}
+
+fetchFavoriteTeamStats('Denver Nuggets', 'DEN');
+
+
+    // lets user sign out
+    $('#sign-out-button').click(function (e) {
+        e.preventDefault();
+        window.location.href = 'index.html';
+    });
+</script>
+    </head>
+    <body>
+        <div class="navbar">
+            <a href="home.html">Home</a>
+            <a href="standings.html">Standings</a>
+            <a href="profile.html">Profile</a>
+        </div>
+        <div id="user-name" class="user-info"></div>
+        <h1>Welcome!</h1>
+        <p>Profile Page.</p>
+
+
+        
+        <div class="form-container">
+            <label for="favorite-team-select">Select Your Favorite Team:</label><br>
+            <select id="favorite-team-select">
+                <option value="" disabled selected>Select a team</option>
+                <!-- user can select from all NBA teams -->
+                <option value="Atlanta Hawks">Atlanta Hawks</option>
+                <option value="Boston Celtics">Boston Celtics</option>
+                <option value="Brooklyn Nets">Brooklyn Nets</option>
+                <option value="Charlotte Hornets">Charlotte Hornets</option>
+                <option value="Chicago Bulls">Chicago Bulls</option>
+                <option value="Cleveland Cavaliers">Cleveland Cavaliers</option>
+                <option value="Dallas Mavericks">Dallas Mavericks</option>
+                <option value="Denver Nuggets">Denver Nuggets</option>
+                <option value="Detroit Pistons">Detroit Pistons</option>
+                <option value="Golden State Warriors">Golden State Warriors</option>
+                <option value="Houston Rockets">Houston Rockets</option>
+                <option value="Indiana Pacers">Indiana Pacers</option>
+                <option value="Los Angeles Clippers">Los Angeles Clippers</option>
+                <option value="Los Angeles Lakers">Los Angeles Lakers</option>
+                <option value="Memphis Grizzlies">Memphis Grizzlies</option>
+                <option value="Miami Heat">Miami Heat</option>
+                <option value="Milwaukee Bucks">Milwaukee Bucks</option>
+                <option value="Minnesota Timberwolves">Minnesota Timberwolves</option>
+                <option value="New Orleans Pelicans">New Orleans Pelicans</option>
+                <option value="New York Knicks">New York Knicks</option>
+                <option value="Oklahoma City Thunder">Oklahoma City Thunder</option>
+                <option value="Orlando Magic">Orlando Magic</option>
+                <option value="Philadelphia 76ers">Philadelphia 76ers</option>
+                <option value="Phoenix Suns">Phoenix Suns</option>
+                <option value="Portland Trail Blazers">Portland Trail Blazers</option>
+                <option value="Sacramento Kings">Sacramento Kings</option>
+                <option value="San Antonio Spurs">San Antonio Spurs</option>
+                <option value="Toronto Raptors">Toronto Raptors</option>
+                <option value="Utah Jazz">Utah Jazz</option>
+                <option value="Washington Wizards">Washington Wizards</option>
+            </select>
+            <button id="add-favorite-team-button">Add Favorite Team</button>
+            <div id="message"></div>
+        </div>
+
+        <div class="action-wrapper">
+            <h1>Sign Out</h1>
+            <form>
+                <input type="hidden" name="action" value="signOut"/>
+                <input id="sign-out-button" type="button" value="Sign out"/>
+            </form>
+        </div>
+    </body>
+</html>
