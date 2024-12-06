@@ -14,10 +14,10 @@ require_once('db.php');
 if(array_key_exists('action', $_POST)){
     $action = $_POST['action'];
 
-    if($action == 'addUser'){
+    if ($action == 'addUser') {
         $saltedHash = password_hash($_POST['password'], PASSWORD_BCRYPT);
-        echo json_encode(addUser($_POST['username'], $saltedHash, $_POST['admin']));
-
+        $isAdmin = isset($_POST['admin']) ? $_POST['admin'] : null; // Handle the undefined key warning
+        echo json_encode(addUser($_POST['username'], $saltedHash, $isAdmin));
     }else if ($action == 'signIn') {
         echo signIn($_POST['username'], $_POST['password']);
     
@@ -38,13 +38,48 @@ if(array_key_exists('action', $_POST)){
     }else if ($action == 'getUsername'){
         echo getUsername();
     }else if ($action == 'addFavoriteTeam'){
-        echo updateFavoriteTeams($_POST['username'], $_POST['favoriteTeams']);
+        echo updateFavoriteTeams();
     }else if ($action == 'getFavTeamStats') {
         if (isset($_POST['teamName']) && isset($_POST['teamAbbreviation'])) {
             echo getFavoriteTeamStats($_POST['teamName'], $_POST['teamAbbreviation']);
         } else {
             echo json_encode(['success' => false, 'message' => 'Missing teamName or teamAbbreviation']);
         }
+    } else if ($action == 'getFavoriteTeams') {
+        echo getFavoriteTeams();
+    }
+    else if ($action == 'removeFavoriteTeam') {
+        if (isset($_POST['teamId']) && isset($_SESSION['username'])) {
+            $teamId = $_POST['teamId'];
+            $username = $_SESSION['username'];
+            echo json_encode(removeFavoriteTeam($username, $teamId));
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Missing teamId or user is not signed in.']);
+        }
+    } else if ($action == 'fetchNFLStandings') {
+        echo fetchNFLStandings();
+    }else if ($action == 'getLastFiveNFLGames') {
+        if (isset($_POST['teamId'])) {
+            echo fetchLastFiveNFLGames($_POST['teamId']);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Missing teamId parameter.']);
+        }
+    } else if ($_POST['action'] === 'addFavoriteNFLTeam') {
+        $favoriteNFLTeams = json_decode($_POST['favoriteNFLTeams'], true);
+        $result = updateUserFavoriteNFLTeams($_SESSION['username'], $favoriteNFLTeams);
+        echo json_encode($result);
+    } else if ($_POST['action'] === 'getFavoriteNFLTeams') {
+        $result = getFavoriteNFLTeams($_SESSION['username']);
+        echo json_encode($result);
+    } else if ($action === 'removeFavoriteNFLTeam') {
+        if (!isset($_POST['teamId']) || !isset($_SESSION['username'])) {
+            echo json_encode(['success' => false, 'message' => 'Missing teamId or user is not signed in.']);
+            exit;
+        }
+    
+        $teamId = $_POST['teamId'];
+        $username = $_SESSION['username'];
+        echo json_encode(removeFavoriteNFLTeam($username, $teamId));
     }else {
         echo json_encode([
             'success' => false, 
@@ -54,7 +89,7 @@ if(array_key_exists('action', $_POST)){
 }
 
 
-
+    // handles user sign in
     function signIn($username, $password) {
         $userInfo = getUserByUsername($username);
 
@@ -70,7 +105,7 @@ if(array_key_exists('action', $_POST)){
 
 
 
-
+    //handles user signing out 
     function signOut() {
         if (isset($_SESSION['signed_in'])) {
             session_destroy();
@@ -80,6 +115,7 @@ if(array_key_exists('action', $_POST)){
         }
     }
 
+    // for future use this will say if admin yes or no
     function getAdminStatus(){
         if(isset($_SESSION['signed_in']) && $_SESSION['signed_in']) {
             return json_encode([
@@ -92,7 +128,8 @@ if(array_key_exists('action', $_POST)){
         }
     }
 
-    #from API code
+    //from API code 
+    //gets the nba teams 5 most recent games
     function fetchLastFiveGames($teamId) {
         $url = "https://sport-highlights-api.p.rapidapi.com/nba/last-five-games?teamId=$teamId";
     
@@ -123,9 +160,10 @@ if(array_key_exists('action', $_POST)){
     
         return json_encode(['success' => true, 'data' => $data]);
     }
-
+    
+    // get the NBA current standigs
     function fetchNBAStandings() {
-        $url = "https://sport-highlights-api.p.rapidapi.com/nba/standings?leagueType=NBA&year=2024";
+        $url = "https://sport-highlights-api.p.rapidapi.com/nba/standings?leagueType=NBA&year=2025";
         $curl = curl_init();
         curl_setopt_array($curl, [
             CURLOPT_URL => $url,
@@ -152,7 +190,7 @@ if(array_key_exists('action', $_POST)){
     
     
     
-
+    // used to display on page
     function getUsername() {
         if (isset($_SESSION['signed_in']) && $_SESSION['signed_in']) {
             if (isset($_SESSION['username'])) {
@@ -165,25 +203,27 @@ if(array_key_exists('action', $_POST)){
         }
     }
 
+    //how the favorite teams are updated in the db no dupes allowed
     function updateFavoriteTeams(){
         global $dbh;
     
-        // make sure user is signed in
         if (!isset($_SESSION['signed_in']) || !$_SESSION['signed_in']) {
             return json_encode(['success' => false, 'message' => 'User not signed in']);
         }
     
         $username = $_SESSION['username'];
     
-        // validate the incoming favorite teams
-        if (!isset($_POST['favoriteTeams']) || !is_array($_POST['favoriteTeams'])) {
+        if (!isset($_POST['favoriteTeams'])) {
             return json_encode(['success' => false, 'message' => 'Invalid favoriteTeams parameter']);
         }
     
-        $newTeams = $_POST['favoriteTeams'];
+        $newTeams = json_decode($_POST['favoriteTeams'], true);
+    
+        if (!is_array($newTeams)) {
+            return json_encode(['success' => false, 'message' => 'Invalid favoriteTeams data']);
+        }
     
         try {
-            // get the current favoriteTeams from the database
             $statement = $dbh->prepare('SELECT favoriteTeams FROM Users WHERE username = :username');
             $statement->execute([':username' => $username]);
             $result = $statement->fetch(PDO::FETCH_ASSOC);
@@ -191,10 +231,20 @@ if(array_key_exists('action', $_POST)){
             $currentTeams = isset($result['favoriteTeams']) ? json_decode($result['favoriteTeams'], true) : [];
             if (!is_array($currentTeams)) $currentTeams = [];
     
-            // make sure no duplicate in by merging
-            $updatedTeams = array_unique(array_merge($currentTeams, $newTeams));
+            // makes sure no duplicates
+            $teamsById = [];
     
-            // update the database
+            foreach ($currentTeams as $team) {
+                $teamsById[$team['id']] = $team;
+            }
+    
+            foreach ($newTeams as $team) {
+                $teamId = $team['id'];
+                $teamsById[$teamId] = $team;
+            }
+    
+            $updatedTeams = array_values($teamsById);
+    
             $statement = $dbh->prepare(
                 'UPDATE Users SET favoriteTeams = :favoriteTeams, updatedAt = datetime() WHERE username = :username'
             );
@@ -208,53 +258,300 @@ if(array_key_exists('action', $_POST)){
     
         return json_encode(['success' => true, 'message' => 'Favorite teams updated successfully']);
     }
-
-    function getFavoriteTeamStats($teamName, $teamAbbreviation) {
-        // Encode team name to handle spaces and special characters
-        // Ai used for thi line
-        $encodedTeamName = urlencode($teamName);
-        
-
-        // API URL
-        $apiUrl = "https://sport-highlights-api.p.rapidapi.com/nba/teams?displayName=$encodedTeamName&league=NBA&abbreviation=$teamAbbreviation";
-        
-        
-        $curl = curl_init();
-        
-        // set cURL options
-        curl_setopt_array($curl, [
-            CURLOPT_URL => $apiUrl,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => "",
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => "GET",
-            CURLOPT_HTTPHEADER => [
-                "x-rapidapi-host: sport-highlights-api.p.rapidapi.com",
-                "x-rapidapi-key: c9fb707a89msh614d97148943c1cp1dddd2jsn1e4723e8e951" 
-            ],
-        ]);
-        
-        // get the repsonse throug cURL
-        $response = curl_exec($curl);
-        $err = curl_error($curl);
-        
-        // close cURL
-        curl_close($curl);
-        
-        // Check for errors and return response
-        // AI used for help with this section
-        if ($err) {
-            return json_encode(['success' => false, 'message' => "cURL Error: $err"]);
-        } else {
-            $decodedResponse = json_decode($response, true);
-            if ($decodedResponse && isset($decodedResponse[0])) {
-                return json_encode(['success' => true, 'data' => $decodedResponse[0]]);
-            } else {
-                return json_encode(['success' => false, 'message' => 'No data found for the specified team']);
-            }
+    
+    
+    // send back favorite teams to be displayed
+    function getFavoriteTeams(){
+        global $dbh;
+    
+        if (!isset($_SESSION['signed_in']) || !$_SESSION['signed_in']) {
+            return json_encode(['success' => false, 'message' => 'User not signed in']);
+        }
+    
+        $username = $_SESSION['username'];
+    
+        try {
+            $statement = $dbh->prepare('SELECT favoriteTeams FROM Users WHERE username = :username');
+            $statement->execute([':username' => $username]);
+            $result = $statement->fetch(PDO::FETCH_ASSOC);
+    
+            $favoriteTeams = isset($result['favoriteTeams']) ? json_decode($result['favoriteTeams'], true) : [];
+    
+            return json_encode(['success' => true, 'favoriteTeams' => $favoriteTeams]);
+        } catch(PDOException $e) {
+            return json_encode(['success' => false, 'message' => "Error fetching favorite teams: $e"]);
         }
     }
+    
+    // for future use not in use
+    function fetchSpecificMatch($params = []) {
+    $url = "https://sport-highlights-api.p.rapidapi.com/nba/matches";
+
+    // Prepare query parameters
+    $queryParams = http_build_query($params);
+
+    // Append query parameters to the URL
+    $url .= '?' . $queryParams;
+
+    $curl = curl_init();
+
+    curl_setopt_array($curl, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_ENCODING => "",
+        CURLOPT_MAXREDIRS => 10,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        CURLOPT_HTTPHEADER => [
+            "x-rapidapi-host: sport-highlights-api.p.rapidapi.com",
+            "x-rapidapi-key: c9fb707a89msh614d97148943c1cp1dddd2jsn1e4723e8e951'" 
+        ],
+    ]);
+
+    $response = curl_exec($curl);
+    $err = curl_error($curl);
+
+    curl_close($curl);
+
+    if ($err) {
+        return json_encode(['success' => false, 'error' => "cURL Error #: $err"]);
+    } else {
+        $data = json_decode($response, true);
+        if (!$data) {
+            return json_encode(['success' => false, 'error' => 'Invalid JSON response from API.']);
+        }
+        return json_encode(['success' => true, 'data' => $data]);
+    }
+}
+
+// update favorite teams by deleting 1
+function removeFavoriteTeam($username, $teamId) {
+    global $dbh;
+
+    try {
+        // gets the current favorite teams for the user
+        $statement = $dbh->prepare('SELECT favoriteTeams FROM Users WHERE username = :username');
+        $statement->execute([':username' => $username]);
+        $result = $statement->fetch(PDO::FETCH_ASSOC);
+
+        if (!$result || !isset($result['favoriteTeams'])) {
+            return error('Favorite teams not found for this user.');
+        }
+
+        // decode JSON of fav teams
+        $favoriteTeams = json_decode($result['favoriteTeams'], true);
+        if (!is_array($favoriteTeams)) {
+            return error('Invalid favorite teams data.');
+        }
+
+        // gets the team that is getting removed
+        $updatedTeams = array_filter($favoriteTeams, function ($team) use ($teamId) {
+            return $team['id'] != $teamId;
+        });
+
+        // updates the favorite teams in the database for that user
+        $statement = $dbh->prepare(
+            'UPDATE Users SET favoriteTeams = :favoriteTeams, updatedAt = datetime() WHERE username = :username'
+        );
+        $statement->execute([
+            ':favoriteTeams' => json_encode(array_values($updatedTeams)),
+            ':username' => $username
+        ]);
+
+        return ['success' => true, 'message' => 'Favorite team removed successfully.'];
+    } catch (PDOException $e) {
+        return error("There was an error removing the favorite team: $e");
+    }
+}
+
+// gets nfl current standings
+function fetchNFLStandings() {
+    $url = "https://sport-highlights-api.p.rapidapi.com/american-football/standings?leagueType=NFL&year=2024";
+
+    $curl = curl_init();
+    curl_setopt_array($curl, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "x-rapidapi-host: sport-highlights-api.p.rapidapi.com",
+            "x-rapidapi-key: c9fb707a89msh614d97148943c1cp1dddd2jsn1e4723e8e951"
+        ],
+    ]);
+
+    $response = curl_exec($curl);
+    $err = curl_error($curl);
+    curl_close($curl);
+
+    if ($err) {
+        error_log("cURL Error: $err");
+        return json_encode(['success' => false, 'error' => "cURL Error: $err"]);
+    }
+
+    $data = json_decode($response, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        error_log("JSON Decode Error: " . json_last_error_msg());
+        return json_encode(['success' => false, 'error' => 'Invalid JSON from API']);
+    }
+
+    error_log("Fetch NFL Standings Success: " . print_r($data, true));
+    return json_encode(['success' => true, 'data' => $data['data'] ?? []]);
+}
+
+// gets the 5 most recent games for an NFL team
+function fetchLastFiveNFLGames($teamId) {
+    $url = "https://sport-highlights-api.p.rapidapi.com/american-football/last-five-games?teamId=$teamId";
+
+    $curl = curl_init();
+    curl_setopt_array($curl, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "x-rapidapi-host: sport-highlights-api.p.rapidapi.com",
+            "x-rapidapi-key: c9fb707a89msh614d97148943c1cp1dddd2jsn1e4723e8e951"
+        ],
+    ]);
+
+    $response = curl_exec($curl);
+    $err = curl_error($curl);
+    curl_close($curl);
+
+    if ($err) {
+        error_log("cURL Error: $err");
+        return json_encode(['success' => false, 'error' => "cURL Error: $err"]);
+    }
+
+    // raw response from the api is logged
+    error_log("Raw API Response: " . $response);
+
+    $data = json_decode($response, true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        error_log("JSON Decode Error: " . json_last_error_msg());
+        return json_encode(['success' => false, 'error' => 'Invalid JSON from API']);
+    }
+
+    // sees if response form API is an array or not
+    if (is_array($data)) {
+        error_log("Parsed API Data: " . print_r($data, true));
+        return json_encode(['success' => true, 'data' => $data]);
+    } else {
+        error_log("NFL API Error: Unexpected API response structure");
+        return json_encode(['success' => false, 'error' => 'Unexpected API response structure']);
+    }
+}
+
+// gets users fav nfl teams from the db
+function getFavoriteNFLTeams($username) {
+    global $dbh;
+
+    try {
+        // gets the favorite NFL teams for the user
+        $statement = $dbh->prepare('SELECT favoriteNFLTeams FROM Users WHERE username = :username');
+        $statement->execute([':username' => $username]);
+        $result = $statement->fetch(PDO::FETCH_ASSOC);
+
+        if (!$result) {
+            return ['success' => false, 'message' => 'No favorite NFL teams found for the user.'];
+        }
+
+        $favoriteNFLTeams = json_decode($result['favoriteNFLTeams'], true);
+
+        if (!is_array($favoriteNFLTeams)) {
+            $favoriteNFLTeams = [];
+        }
+
+        return ['success' => true, 'favoriteNFLTeams' => $favoriteNFLTeams];
+    } catch (PDOException $e) {
+        return ['success' => false, 'message' => 'Error fetching favorite NFL teams: ' . $e->getMessage()];
+    }
+}
+
+// update users fav NFL teams with new team(s) make sure no dupes
+function updateUserFavoriteNFLTeams($username, $newTeams) {
+    global $dbh;
+
+    try {
+        // get favorite NFL teams that user has already
+        $statement = $dbh->prepare('SELECT favoriteNFLTeams FROM Users WHERE username = :username');
+        $statement->execute([':username' => $username]);
+        $result = $statement->fetch(PDO::FETCH_ASSOC);
+
+        $currentTeams = isset($result['favoriteNFLTeams']) ? json_decode($result['favoriteNFLTeams'], true) : [];
+        if (!is_array($currentTeams)) {
+            $currentTeams = [];
+        }
+
+        // makes sure no duplicates
+        $teamsById = [];
+        foreach ($currentTeams as $team) {
+            $teamsById[$team['id']] = $team;
+        }
+        foreach ($newTeams as $team) {
+            $teamsById[$team['id']] = $team;
+        }
+
+        $updatedTeams = array_values($teamsById);
+
+        // updates the database
+        $statement = $dbh->prepare(
+            'UPDATE Users SET favoriteNFLTeams = :favoriteNFLTeams, updatedAt = datetime() WHERE username = :username'
+        );
+        $statement->execute([
+            ':favoriteNFLTeams' => json_encode($updatedTeams),
+            ':username' => $username
+        ]);
+
+        return ['success' => true, 'message' => 'Favorite NFL teams updated successfully.', 'updatedTeams' => $updatedTeams];
+    } catch (PDOException $e) {
+        return ['success' => false, 'message' => 'Error updating favorite NFL teams: ' . $e->getMessage()];
+    }
+}
+
+// gets rid of a fav NFL team from db
+function removeFavoriteNFLTeam($username, $teamId) {
+    global $dbh;
+
+    try {
+        // gets the NFL teams user has
+        $statement = $dbh->prepare('SELECT favoriteNFLTeams FROM Users WHERE username = :username');
+        $statement->execute([':username' => $username]);
+        $result = $statement->fetch(PDO::FETCH_ASSOC);
+
+        // makes sure there is teams
+        if (!$result || !isset($result['favoriteNFLTeams'])) {
+            return ['success' => false, 'message' => 'Favorite NFL teams not found for this user.'];
+        }
+
+        // JSOn becomes array
+        $favoriteNFLTeams = json_decode($result['favoriteNFLTeams'], true);
+        if (!is_array($favoriteNFLTeams)) {
+            return ['success' => false, 'message' => 'Invalid favorite NFL teams data.'];
+        }
+
+        // find team to remove
+        $updatedTeams = array_filter($favoriteNFLTeams, function ($team) use ($teamId) {
+            return $team['id'] != $teamId;
+        });
+
+        // updates NFL teams in db
+        $statement = $dbh->prepare(
+            'UPDATE Users SET favoriteNFLTeams = :favoriteNFLTeams, updatedAt = datetime() WHERE username = :username'
+        );
+        $statement->execute([
+            ':favoriteNFLTeams' => json_encode(array_values($updatedTeams)), // AI used to help 
+            ':username' => $username
+        ]);
+
+        return ['success' => true, 'message' => 'Favorite NFL team removed successfully.'];
+    } catch (PDOException $e) {
+        return ['success' => false, 'message' => 'Error removing favorite NFL team: ' . $e->getMessage()];
+    }
+}
+
+
+
+
+
+
     
     

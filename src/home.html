@@ -78,7 +78,7 @@
     
         <script>
             $(document).ready(function () {
-                // How the user name is displayed in the top right
+                // Username Initialization
                 $.ajax({
                     url: 'api.php',
                     method: 'POST',
@@ -97,62 +97,223 @@
                         $('#user-name').text('Welcome, Guest!');
                     }
                 });
-                // get NBA last five games data
-                $.ajax({
-                    url: 'api.php', 
-                    method: 'POST',
-                    data: { 
-                        action: 'getLastFiveGames',
-                        teamId: '2' // id of the team celtics for now
-                    },
-                    // Ai used to help format the response of games
-                    success: function (response) {
-                        if (response && response.data && response.data.length > 0) {
-                            let gamesHTML = '<div class="game-list">';
-                            response.data.forEach(game => {
-                                const homeTeamScore = game.state.score.homeTeam.reduce((a, b) => a + b, 0);
-                                const awayTeamScore = game.state.score.awayTeam.reduce((a, b) => a + b, 0);
-                                gamesHTML += `
-                                    <div class="game-item">
-                                        <div class="team-info">
-                                            <img src="${game.homeTeam.logo}" alt="${game.homeTeam.name} logo"/>
-                                            <strong>${game.homeTeam.displayName}</strong>
-                                        </div>
-                                        <div>
-                                            <span><strong>VS</strong></span>
-                                        </div>
-                                        <div class="team-info">
-                                            <img src="${game.awayTeam.logo}" alt="${game.awayTeam.name} logo"/>
-                                            <strong>${game.awayTeam.displayName}</strong>
-                                        </div>
-                                        <div>
-                                            <span><strong>Score:</strong> ${homeTeamScore} - ${awayTeamScore}</span>
-                                            <br>
-                                            <span><strong>Status:</strong> ${game.state.description}</span>
-                                            <br>
-                                            <span><strong>Date:</strong> ${new Date(game.date).toLocaleDateString()}</span>
-                                        </div>
-                                    </div>
-                                `;
-                            });
-                            gamesHTML += '</div>';
-                            $('#game-data').html(gamesHTML);
-                        } else {
-                            $('#game-data').text('No data available.');
-                        }
-                    },
-                    error: function () {
-                        $('#game-data').text('Failed to fetch games.');
-                    },
-                });
-
-                $('#sign-out-button').click(function(e) {
-                    e.preventDefault(); 
-                    // back to sign in screen
+        
+                // NBA Teams full list
+                const nbaTeams = [
+                    { id: "23", name: "Atlanta Hawks", abbreviation: "ATL" },
+                    { id: "2", name: "Boston Celtics", abbreviation: "BOS" },
+                    { id: "49", name: "Brooklyn Nets", abbreviation: "BKN" },
+                    { id: "33", name: "Charlotte Hornets", abbreviation: "CHA" },
+                    { id: "27", name: "Chicago Bulls", abbreviation: "CHI" },
+                    { id: "35", name: "Cleveland Cavaliers", abbreviation: "CLE" },
+                    { id: "40", name: "Dallas Mavericks", abbreviation: "DAL" },
+                    { id: "3", name: "Denver Nuggets", abbreviation: "DEN" },
+                    { id: "25", name: "Detroit Pistons", abbreviation: "DET" },
+                    { id: "43", name: "Golden State Warriors", abbreviation: "GSW" },
+                    { id: "28", name: "Houston Rockets", abbreviation: "HOU" },
+                    { id: "36", name: "Indiana Pacers", abbreviation: "IND" },
+                    { id: "30", name: "Los Angeles Clippers", abbreviation: "LAC" },
+                    { id: "4", name: "Los Angeles Lakers", abbreviation: "LAL" },
+                    { id: "42", name: "Memphis Grizzlies", abbreviation: "MEM" },
+                    { id: "1", name: "Miami Heat", abbreviation: "MIA" },
+                    { id: "39", name: "Milwaukee Bucks", abbreviation: "MIL" },
+                    { id: "41", name: "Minnesota Timberwolves", abbreviation: "MIN" },
+                    { id: "64", name: "New Orleans Pelicans", abbreviation: "NOP" },
+                    { id: "26", name: "New York Knicks", abbreviation: "NYK" },
+                    { id: "38", name: "Oklahoma City Thunder", abbreviation: "OKC" },
+                    { id: "24", name: "Orlando Magic", abbreviation: "ORL" },
+                    { id: "71", name: "Philadelphia 76ers", abbreviation: "PHI" },
+                    { id: "46", name: "Phoenix Suns", abbreviation: "PHX" },
+                    { id: "31", name: "Portland Trail Blazers", abbreviation: "POR" },
+                    { id: "32", name: "Sacramento Kings", abbreviation: "SAC" },
+                    { id: "37", name: "San Antonio Spurs", abbreviation: "SAS" },
+                    { id: "34", name: "Toronto Raptors", abbreviation: "TOR" },
+                    { id: "45", name: "Utah Jazz", abbreviation: "UTA" },
+                    { id: "50", name: "Washington Wizards", abbreviation: "WAS" }
+                ];
+        
+                const nbaDisplayedGames = new Set();
+        
+                //AI used for part of this (promise)
+                function fetchLastGameForNBATeam(team) {
+                    // Returns a Promise to handle the asynchronous operation of fetching data
+                    return new Promise((resolve) => {
+                        $.ajax({
+                            url: 'api.php',
+                            method: 'POST',
+                            data: { action: 'getLastFiveGames', teamId: team.id },
+                            dataType: 'json',
+                            success: function (response) {
+                                if (response.success && response.data && response.data.length > 0) {
+                                    const game = response.data[0];
+                                    const uniqueGameKey = `${game.homeTeam.id}-${game.awayTeam.id}-${game.date}`;
+                                    // sees if game has been displayed
+                                    if (!nbaDisplayedGames.has(uniqueGameKey)) {
+                                        // adds game to display 
+                                        nbaDisplayedGames.add(uniqueGameKey);
+                                        const homeTeamScore = game.state.score.homeTeam.reduce((a, b) => a + b, 0);
+                                        const awayTeamScore = game.state.score.awayTeam.reduce((a, b) => a + b, 0);
+        
+                                        // AI used for HTML
+                                        const gameHTML = `
+                                            <div class="game-item">
+                                                <h3>${team.name} (${team.abbreviation})</h3>
+                                                <div class="team-info">
+                                                    <img src="${game.homeTeam.logo}" alt="${game.homeTeam.name} logo"/>
+                                                    <strong>${game.homeTeam.displayName}</strong>
+                                                </div>
+                                                <div>
+                                                    <span><strong>VS</strong></span>
+                                                </div>
+                                                <div class="team-info">
+                                                    <img src="${game.awayTeam.logo}" alt="${game.awayTeam.name} logo"/>
+                                                    <strong>${game.awayTeam.displayName}</strong>
+                                                </div>
+                                                <div>
+                                                    <span><strong>Score:</strong> ${homeTeamScore} - ${awayTeamScore}</span>
+                                                    <br>
+                                                    <span><strong>Status:</strong> ${game.state.description}</span>
+                                                    <br>
+                                                    <span><strong>Date:</strong> ${new Date(game.date).toLocaleDateString()}</span>
+                                                </div>
+                                            </div>`;
+                                        resolve(gameHTML);
+                                    } else {
+                                        resolve(null);
+                                    }
+                                } else {
+                                    resolve(`<h3>${team.name} (${team.abbreviation})</h3><p>No games data available.</p>`);
+                                }
+                            },
+                            error: function () {
+                                resolve(`<h3>${team.name} (${team.abbreviation})</h3><p>Failed to fetch games.</p>`);
+                            }
+                        });
+                    });
+                }
+        
+                function fetchAllNBAGames() {
+                    const nbaPromises = nbaTeams.map(team => fetchLastGameForNBATeam(team));
+                    Promise.all(nbaPromises).then(results => {
+                        const gamesHTML = results.filter(html => html !== null).join('');
+                        $('#game-data').html(gamesHTML);
+                    });
+                }
+        
+                fetchAllNBAGames();
+        
+                // NFL Teams and full list
+                const nflTeams = [
+                    { id: "92736", name: "Atlanta Falcons", abbreviation: "ATL" },
+                    { id: "92743", name: "Baltimore Ravens", abbreviation: "BAL" },
+                    { id: "92733", name: "Chicago Bears", abbreviation: "CHI" },
+                    { id: "92730", name: "Cincinnati Bengals", abbreviation: "CIN" },
+                    { id: "92741", name: "Carolina Panthers", abbreviation: "CAR" },
+                    { id: "92745", name: "Cleveland Browns", abbreviation: "CLE" },
+                    { id: "92746", name: "Dallas Cowboys", abbreviation: "DAL" },
+                    { id: "92764", name: "Denver Broncos", abbreviation: "DEN" },
+                    { id: "92742", name: "Green Bay Packers", abbreviation: "GB" },
+                    { id: "92748", name: "Houston Texans", abbreviation: "HOU" },
+                    { id: "92738", name: "Indianapolis Colts", abbreviation: "IND" },
+                    { id: "92732", name: "Kansas City Chiefs", abbreviation: "KC" },
+                    { id: "92747", name: "Los Angeles Chargers", abbreviation: "LAC" },
+                    { id: "92749", name: "Los Angeles Rams", abbreviation: "LAR" },
+                    { id: "92751", name: "Minnesota Vikings", abbreviation: "MIN" },
+                    { id: "92750", name: "Philadelphia Eagles", abbreviation: "PHI" },
+                    { id: "92755", name: "Pittsburgh Steelers", abbreviation: "PIT" },
+                    { id: "92737", name: "Las Vegas Raiders", abbreviation: "LV" },
+                    { id: "92767", name: "New England Patriots", abbreviation: "NE" },
+                    { id: "92768", name: "New Orleans Saints", abbreviation: "NO" },
+                    { id: "92752", name: "New York Jets", abbreviation: "NYJ" },
+                    { id: "92753", name: "New York Giants", abbreviation: "NYG" },
+                    { id: "92765", name: "Arizona Cardinals", abbreviation: "ARI" },
+                    { id: "92766", name: "Washington Commanders", abbreviation: "WAS" },
+                    { id: "92744", name: "Seattle Seahawks", abbreviation: "SEA" },
+                    { id: "92735", name: "San Francisco 49ers", abbreviation: "SF" },
+                    { id: "92769", name: "Tennessee Titans", abbreviation: "TEN" },
+                    { id: "92734", name: "Tampa Bay Buccaneers", abbreviation: "TB" }
+                ];
+        
+                const nflDisplayedGames = new Set();
+        
+                //AI used for part of this (promise)
+                function fetchLastGameForNFLTeam(team) {
+                    // Returns a Promise to handle the asynchronous operation of fetching data
+                    return new Promise((resolve) => {
+                        $.ajax({
+                            url: 'api.php',
+                            method: 'POST',
+                            data: { action: 'getLastFiveNFLGames', teamId: team.id },
+                            dataType: 'json',
+                            success: function (response) {
+                                if (response.success && response.data && response.data.length > 0) {
+                                    const game = response.data[0];
+                                    const uniqueGameKey = `${game.homeTeam.id}-${game.awayTeam.id}-${game.date}`;
+                                    // sees if this game has already been displayed
+                                    if (!nflDisplayedGames.has(uniqueGameKey)) {
+                                        // sets game displayed 
+                                        nflDisplayedGames.add(uniqueGameKey); 
+                                        const scoreParts = game.state?.score?.current?.split(" - ") || [0, 0];
+                                        const homeScore = scoreParts[0];
+                                        const awayScore = scoreParts[1];
+        
+                                        // HTML done with AI
+                                        const gameHTML = `
+                                            <div class="game-item">
+                                                <h3>${team.name} (${team.abbreviation})</h3>
+                                                <div class="team-info">
+                                                    <img src="${game.homeTeam.logo}" alt="${game.homeTeam.name} logo"/>
+                                                    <strong>${game.homeTeam.displayName}</strong>
+                                                </div>
+                                                <div>
+                                                    <span><strong>VS</strong></span>
+                                                </div>
+                                                <div class="team-info">
+                                                    <img src="${game.awayTeam.logo}" alt="${game.awayTeam.name} logo"/>
+                                                    <strong>${game.awayTeam.displayName}</strong>
+                                                </div>
+                                                <div>
+                                                    <span><strong>Score:</strong> ${homeScore} - ${awayScore}</span>
+                                                    <br>
+                                                    <span><strong>Status:</strong> ${game.state.description}</span>
+                                                    <br>
+                                                    <span><strong>Date:</strong> ${new Date(game.date).toLocaleDateString()}</span>
+                                                </div>
+                                            </div>`;
+                                        resolve(gameHTML);
+                                    } else {
+                                        resolve(null);
+                                    }
+                                } else {
+                                    resolve(`<h3>${team.name} (${team.abbreviation})</h3><p>No games data available.</p>`);
+                                }
+                            },
+                            error: function () {
+                                resolve(`<h3>${team.name} (${team.abbreviation})</h3><p>Failed to fetch games.</p>`);
+                            }
+                        });
+                    });
+                }
+        
+                function fetchAllNFLGames() {
+                    // AI used for help with this (Promises)
+                    const nflPromises = nflTeams.map(team => fetchLastGameForNFLTeam(team));
+                    Promise.all(nflPromises).then(results => {
+                        const gamesHTML = results.filter(html => html !== null).join('');
+                        $('#nfl-game-data').html(gamesHTML);
+                    });
+                }
+        
+                fetchAllNFLGames();
+        
+                // Sign Out Logic
+                $('#sign-out-button').click(function (e) {
+                    e.preventDefault();
                     window.location.href = 'index.html';
                 });
             });
         </script>
+        
     
     </head>
     <body>
@@ -166,11 +327,19 @@
         <p>You have successfully signed in.</p>
 
         <div id="nba-highlights">
-            <h2>NBA Last Five Games</h2>
+            <h2>Recent NBA Games</h2>
             <div id="game-data">
                 <!-- Where Game data appears -->
             </div>
         </div>
+
+        <div id="nfl-highlights">
+            <h2>Recent NFL Games</h2>
+            <div id="nfl-game-data">
+                <!-- NFL game data will be injected here -->
+            </div>
+        </div>
+        
 
         <div class="action-wrapper">
             <h1>Sign Out</h1>

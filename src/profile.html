@@ -1,257 +1,720 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Profile Page</title>
-        <style>
-            #standings-container table {
-                display: block !important;
-                visibility: visible !important;
+<head>
+    <meta charset="UTF-8">
+    <title>Profile Page</title>
+    <!-- Meta tag for responsiveness -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Navigation bar styling */
+        .navbar {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background-color: #333;
+            padding: 10px 0;
+            color: white;
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            transition: background-color 0.3s;
+        }
+
+        .navbar a:hover {
+            background-color: #575757;
+            border-radius: 5px;
+        }
+
+        /* Favorite teams list styling */
+        #favorite-teams-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #favorite-teams-list li {
+            padding: 5px 0;
+        }
+
+        .form-container {
+            margin-top: 20px;
+        }
+
+        #message {
+            margin-top: 10px;
+        }
+
+        /* Game list styling */
+        .game-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .game-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .team-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .team-info img {
+            width: 40px;
+            height: 40px;
+        }
+
+        /* Games Table Styling */
+        .games-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .games-table thead {
+            background-color: #333;
+            color: #fff;
+        }
+
+        .games-table th, .games-table td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+
+        .games-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .games-table tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .team-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .team-cell img {
+            width: 30px;
+            height: 30px;
+        }
+
+        .team-cell span {
+            font-weight: bold;
+        }
+
+        /* Optional: Adjust the font size and styles */
+        .games-table th, .games-table td {
+            font-size: 14px;
+        }
+    </style>
+    <!-- Include jQuery -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            // gets username on page load
+            $.ajax({
+                url: 'api.php',
+                method: 'POST',
+                data: { action: 'getUsername' },
+                dataType: 'json',
+                success: function (response) {
+                    if (response.success) {
+                        $('#user-name').text(`${response.username}`);
+                    } else {
+                        console.error('Error:', response.message);
+                        $('#user-name').text('Guest!');
+                    }
+                },
+                error: function () {
+                    console.error('Failed to fetch username.');
+                    $('#user-name').text('Welcome, Guest!');
+                }
+            });
+
+            // add favorite team button
+            $('#add-favorite-team-button').click(function () {
+                const selectedValue = $('#favorite-team-select').val().trim();
+
+                if (selectedValue === '') {
+                    $('#message').text('Please select a team.').css('color', 'red');
+                    return;
+                }
+
+                const [teamId, teamName, teamAbbreviation] = selectedValue.split('|');
+
+                $.ajax({
+                    url: 'api.php',
+                    method: 'POST',
+                    data: {
+                        action: 'addFavoriteTeam',
+                        favoriteTeams: JSON.stringify([{
+                            id: teamId,
+                            name: teamName,
+                            abbreviation: teamAbbreviation
+                        }]),
+                    },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.success) {
+                            $('#message').text(response.message).css('color', 'green');
+                            $('#favorite-team-select').val(''); // restes the select
+                            displayFavoriteTeams();
+                            location.reload(); // forces the page to reload so the page updates
+                        } else {
+                            $('#message').text(response.message).css('color', 'red');
+                        }
+                    },
+                    error: function () {
+                        $('#message').text('Failed to update favorite team. Please try again.').css('color', 'red');
+                    }
+                });
+            });
+
+            // displays the users favorite teams
+            function displayFavoriteTeams() {
+                $.ajax({
+                    url: 'api.php',
+                    method: 'POST',
+                    data: { action: 'getFavoriteTeams' },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.success) {
+                            const teamsList = response.favoriteTeams;
+                            const $list = $('#favorite-teams-list');
+                            $list.empty();
+
+                            if (teamsList.length === 0) {
+                                $list.append('<li>You have not added any favorite teams yet.</li>');
+                            } else {
+                                teamsList.forEach(team => {
+                                    const teamId = team.id;
+                                    const teamName = team.name;
+                                    const teamAbbreviation = team.abbreviation;
+                                    const $teamItem = $(`
+                                        <li>
+                                            <h2>${teamName} (${teamAbbreviation})</h2>
+                                            <div class="game-data" id="game-data-${teamAbbreviation}">
+                                                <!-- Where Game data appears -->
+                                            </div>
+                                        </li>
+                                    `);
+                                    $list.append($teamItem);
+
+                                    // gets the last five games team using teamId
+                                    fetchLastFiveGames(teamId, teamAbbreviation);
+                                });
+                            }
+                        } else {
+                            console.error('Error:', response.message);
+                            $('#favorite-teams-list').html(`<li>Error: ${response.message}</li>`);
+                        }
+                    },
+                    error: function () {
+                        console.error('Failed to fetch favorite teams.');
+                        $('#favorite-teams-list').html('<li>Failed to fetch favorite teams.</li>');
+                    }
+                });
             }
 
-            table, tr, td, th {
-                border: 1px solid gray;
-            }
-    
-            .output {
-                width: 80em;
-                height: 10em;
-            }
-    
-            .highlight {
-                border: 2px solid lightgreen;
-            }
-    
-            .error {
-                border-color: red;
-            }
-    
-            .game-list {
-                display: flex;
-                flex-direction: column;
-                gap: 15px;
-            }
-    
-            .game-item {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border: 1px solid #ddd;
-                padding: 10px;
-                margin-bottom: 10px;
-                border-radius: 5px;
-            }
-    
-            .team-info {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-    
-            .team-info img {
-                width: 40px;
-                height: 40px;
-            }
-            /* Navigation bar styling */
-            .navbar {
-                display: flex;
-                justify-content: space-around;
-                align-items: center;
-                background-color: #333;
-                padding: 10px 0;
-                color: white;
+            // gets the last 5 games for users favorite NBA teams
+            function fetchLastFiveGames(teamId, teamAbbreviation) {
+                $.ajax({
+                    url: 'api.php', 
+                    method: 'POST',
+                    data: { 
+                        action: 'getLastFiveGames',
+                        teamId: teamId
+                    },
+                    dataType: 'json',
+                    success: function (response) {
+                        const $gamesList = $(`#game-data-${teamAbbreviation}`);
+                        if (response && response.data && response.data.length > 0) {
+                            let gamesHTML = '<div class="game-list">';
+                            response.data.forEach(game => {
+                                // AI used for this calculate scores
+                                const homeTeamScore = game.state.score.homeTeam.reduce((a, b) => a + b, 0);
+                                const awayTeamScore = game.state.score.awayTeam.reduce((a, b) => a + b, 0);
+
+                                // AI used for this build the HTML for each game
+                                gamesHTML += `
+                                    <div class="game-item">
+                                        <div class="team-info">
+                                            <img src="${game.homeTeam.logo}" alt="${game.homeTeam.name} logo"/>
+                                            <strong>${game.homeTeam.displayName}</strong>
+                                        </div>
+                                        <div>
+                                            <span><strong>VS</strong></span>
+                                        </div>
+                                        <div class="team-info">
+                                            <img src="${game.awayTeam.logo}" alt="${game.awayTeam.name} logo"/>
+                                            <strong>${game.awayTeam.displayName}</strong>
+                                        </div>
+                                        <div>
+                                            <span><strong>Score:</strong> ${homeTeamScore} - ${awayTeamScore}</span>
+                                            <br>
+                                            <span><strong>Status:</strong> ${game.state.description}</span>
+                                            <br>
+                                            <span><strong>Date:</strong> ${new Date(game.date).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            gamesHTML += '</div>';
+                            $gamesList.html(gamesHTML);
+                        } else {
+                            $gamesList.text('No data available.');
+                        }
+                    },
+                    error: function () {
+                        const $gamesList = $(`#game-data-${teamAbbreviation}`);
+                        $gamesList.text('Failed to fetch games.');
+                    },
+                });
             }
 
-            .navbar a {
-                color: white;
-                text-decoration: none;
-                padding: 10px 20px;
-                transition: background-color 0.3s;
-            }
-
-            .navbar a:hover {
-                background-color: #575757;
-                border-radius: 5px;
-            }
-        </style>
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-        <script>
             $(document).ready(function () {
-    $('#add-favorite-team-button').click(function () {
-        // gets values from the input fields
-        const teamName = $('#favorite-team-select').val().trim();
-        const username = $('#user-name').text().trim(); // gets name from user name field
+                // get and display favorite NFL teams
+                function displayFavoriteNFLTeams() {
+                $.ajax({
+                    url: 'api.php',
+                    method: 'POST',
+                    data: { action: 'getFavoriteNFLTeams' },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.success) {
+                            const teamsList = response.favoriteNFLTeams;
+                            const $list = $('#favorite-nfl-teams-list');
+                            $list.empty();
 
-        if (teamName === '') {
-            $('#message').text('Please enter a team name.').css('color', 'red');
+                            if (teamsList.length === 0) {
+                                $list.append('<li>You have not added any favorite NFL teams yet.</li>');
+                            } else {
+                                teamsList.forEach(team => {
+                                    const teamId = team.id;
+                                    const teamName = team.name;
+                                    const teamAbbreviation = team.abbreviation;
+
+                                    // creates the list item for the team
+                                    const $teamItem = $(`
+                                        <li>
+                                            <h2>${teamName} (${teamAbbreviation})</h2>
+                                            <div class="game-data" id="game-data-${teamAbbreviation}">
+                                                Loading games...
+                                            </div>
+                                        </li>
+                                    `);
+                                    $list.append($teamItem);
+
+                                    // get and display the last five games for this team
+                                    fetchLastFiveGames(teamId, teamAbbreviation);
+                                });
+                            }
+                        } else {
+                            $('#favorite-nfl-teams-list').html(`<li>Error: ${response.message}</li>`);
+                        }
+                    },
+                    error: function () {
+                        $('#favorite-nfl-teams-list').html('<li>Failed to fetch favorite NFL teams.</li>');
+                    }
+                });
+            }
+                // get the lst 5 NFL games for fav teams
+                function fetchLastFiveGames(teamId, teamAbbreviation) {
+                    $.ajax({
+                        url: 'api.php',
+                        method: 'POST',
+                        data: {
+                            action: 'getLastFiveNFLGames',
+                            teamId: teamId,
+                        },
+                        dataType: 'json',
+                        success: function (response) {
+                            const $gamesList = $(`#game-data-${teamAbbreviation}`);
+                            if (response.success && response.data && response.data.length > 0) {
+                                let gamesHTML = '<div class="game-list">';
+                                response.data.forEach(game => {
+                                    // pull out the score of game
+                                    const scoreParts = game.state?.score?.current?.split(" - ");
+                                    const homeScore = scoreParts && scoreParts.length === 2 ? scoreParts[0] : 0;
+                                    const awayScore = scoreParts && scoreParts.length === 2 ? scoreParts[1] : 0;
+
+                                    // Build the HTML for each game AI used for this
+                                    gamesHTML += `
+                                        <div class="game-item">
+                                            <div class="team-info">
+                                                <img src="${game.homeTeam.logo}" alt="${game.homeTeam.name} logo"/>
+                                                <strong>${game.homeTeam.displayName}</strong>
+                                            </div>
+                                            <div>
+                                                <span><strong>VS</strong></span>
+                                            </div>
+                                            <div class="team-info">
+                                                <img src="${game.awayTeam.logo}" alt="${game.awayTeam.name} logo"/>
+                                                <strong>${game.awayTeam.displayName}</strong>
+                                            </div>
+                                            <div>
+                                                <span><strong>Score:</strong> ${homeScore} - ${awayScore}</span>
+                                                <br>
+                                                <span><strong>Status:</strong> ${game.state.description}</span>
+                                                <br>
+                                                <span><strong>Date:</strong> ${new Date(game.date).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                gamesHTML += '</div>';
+                                $gamesList.html(gamesHTML);
+                            } else {
+                                $gamesList.html('<p>No recent games available.</p>');
+                            }
+                        },
+                        error: function () {
+                            const $gamesList = $(`#game-data-${teamAbbreviation}`);
+                            $gamesList.html('<p>Failed to fetch games.</p>');
+                        }
+                    });
+                }
+
+
+
+    // add favorite NFL team for user
+    $('#add-favorite-nfl-team-button').click(function () {
+        const selectedValue = $('#favorite-nfl-team-select').val().trim();
+
+        if (!selectedValue) {
+            $('#nfl-message').text('Please select a team.').css('color', 'red');
             return;
         }
 
-        // the AJAX request to add the favorite team
+        const [teamId, teamName, teamAbbreviation] = selectedValue.split('|');
+
         $.ajax({
             url: 'api.php',
             method: 'POST',
             data: {
-                action: 'addFavoriteTeam',
-                username: username, // send the username 
-                favoriteTeams: [teamName], // teamName put in an array
+                action: 'addFavoriteNFLTeam',
+                favoriteNFLTeams: JSON.stringify([{
+                    id: teamId,
+                    name: teamName,
+                    abbreviation: teamAbbreviation
+                }]),
             },
             dataType: 'json',
             success: function (response) {
                 if (response.success) {
-                    $('#message').text(response.message).css('color', 'green');
-                    $('#favorite-team-input').val(''); // makes input field empty
+                    $('#nfl-message').text(response.message).css('color', 'green');
+                    $('#favorite-nfl-team-select').val('');
+                    location.reload();
+                    displayFavoriteNFLTeams();
                 } else {
-                    $('#message').text(response.message).css('color', 'red');
+                    $('#nfl-message').text(response.message).css('color', 'red');
                 }
             },
             error: function () {
-                $('#message').text('Failed to update favorite team. Please try again.').css('color', 'red');
+                $('#nfl-message').text('Failed to update favorite NFL team. Please try again.').css('color', 'red');
             }
         });
     });
 
+    // fill the favorite NFL dropdown
+    function populateFavoriteNFLTeamsDropdown() {
+        $.ajax({
+            url: 'api.php',
+            method: 'POST',
+            data: { action: 'getFavoriteNFLTeams' },
+            success: function (response) {
+                const select = $('#remove-nfl-team-select');
+                select.empty();
+
+                if (response.success && response.favoriteNFLTeams && response.favoriteNFLTeams.length > 0) {
+                    response.favoriteNFLTeams.forEach(team => {
+                        const teamOption = `<option value="${team.id}|${team.name}|${team.abbreviation}">${team.name}</option>`;
+                        select.append(teamOption);
+                        console.log("Updated NFL teams dropdown response:", response);
+                    });
+                } else {
+                    select.append('<option disabled>No favorite NFL teams available</option>');
+                }
+            },
+            error: function () {
+                const select = $('#remove-nfl-team-select');
+                select.empty();
+                select.append('<option disabled>Error fetching teams</option>');
+            }
+        });
+    }
+
+    $('#remove-favorite-nfl-team-button').click(function () {
+    const selectedOption = $('#remove-nfl-team-select').val();
+    if (!selectedOption) {
+        alert('Please select a team to remove.');
+        return;
+    }
+
+    const [teamId, teamName] = selectedOption.split('|');
+    console.log('Selected teamId:', teamId, 'teamName:', teamName);
+
     $.ajax({
         url: 'api.php',
         method: 'POST',
-        data: { action: 'getUsername' },
-        dataType: 'json',
+        data: { action: 'removeFavoriteNFLTeam', teamId },
         success: function (response) {
+            console.log('Selected teamId:', teamId, 'teamName:', teamName);
+            console.log('Remove Favorite NFL Team Response:', response);
+            location.reload();
             if (response.success) {
-                $('#user-name').text(`${response.username}`);
+                alert(`${teamName} removed from your favorite NFL teams.`);
+                populateFavoriteNFLTeamsDropdown();
+                //displayFavoriteNFLTeams();
             } else {
-                console.error('Error:', response.message);
-                $('#user-name').text('Guest!');
+                alert('Failed to remove team: ' + (response.message || 'Unknown error'));
             }
         },
         error: function () {
-            console.error('Failed to fetch username.');
-            $('#user-name').text('Welcome, Guest!');
+            console.error('AJAX error while removing NFL team.');
+            alert('Error removing favorite NFL team.');
         }
-    });
-
-    // lets them sign out properly
-    $('#sign-out-button').click(function (e) {
-        e.preventDefault();
-        window.location.href = 'index.html';
     });
 });
 
 
-    $.ajax({
-        url: 'api.php',
-        method: 'POST',
-        data: { action: 'getUsername' },
-        dataType: 'json',
-        success: function (response) {
-            if (response.success) {
-                $('#user-name').text(`${response.username}`);
-            } else {
-                console.error('Error:', response.message);
-                $('#user-name').text('Guest!');
-            }
-        },
-        error: function () {
-            console.error('Failed to fetch username.');
-            $('#user-name').text('Welcome, Guest!');
-        }
-    });
 
-    function fetchFavoriteTeamStats(teamName, teamAbbreviation) {
-    $.ajax({
-        url: 'api.php',
-        method: 'POST',
-        data: {
-            action: 'getFavTeamStats',
-            teamName: teamName,
-            teamAbbreviation: teamAbbreviation
-        },
-        dataType: 'json',
-        success: function(response) {
-            if (response.success) {
-                console.log('Team Stats:', response.data);
-                $('#team-stats').text(JSON.stringify(response.data, null, 2));
-            } else {
-                console.error('Error:', response.message);
-                $('#team-stats').text(response.message);
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('AJAX Error:', error);
-            $('#team-stats').text('Failed to fetch team stats. Please try again.');
-        }
-    });
-}
-
-fetchFavoriteTeamStats('Denver Nuggets', 'DEN');
+    //  displays the dropdowns
+    displayFavoriteNFLTeams();
+    populateFavoriteNFLTeamsDropdown();
+});
 
 
-    // lets user sign out
-    $('#sign-out-button').click(function (e) {
-        e.preventDefault();
-        window.location.href = 'index.html';
-    });
-</script>
-    </head>
-    <body>
-        <div class="navbar">
-            <a href="home.html">Home</a>
-            <a href="standings.html">Standings</a>
-            <a href="profile.html">Profile</a>
-        </div>
-        <div id="user-name" class="user-info"></div>
-        <h1>Welcome!</h1>
-        <p>Profile Page.</p>
+            // displays the favorite teams of the user
+            displayFavoriteTeams();
 
+            // sign out button 
+            $('#sign-out-button').click(function(e) {
+                e.preventDefault();
+                $.ajax({
+                    url: 'api.php',
+                    method: 'POST',
+                    data: { action: 'signOut' },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.success) {
+                            window.location.href = 'index.html';
+                        } else {
+                            console.error('Error:', response.message);
+                        }
+                    },
+                    error: function () {
+                        console.error('Failed to sign out.');
+                    }
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="navbar">
+        <a href="home.html">Home</a>
+        <a href="standings.html">Standings</a>
+        <a href="profile.html">Profile</a>
+    </div>
 
-        
+    <div class="content">
+        <h1> <span id="user-name">Guest</span>'s Profile</h1>
+        <p>This is your profile page.</p>
+
         <div class="form-container">
             <label for="favorite-team-select">Select Your Favorite Team:</label><br>
             <select id="favorite-team-select">
                 <option value="" disabled selected>Select a team</option>
-                <!-- user can select from all NBA teams -->
-                <option value="Atlanta Hawks">Atlanta Hawks</option>
-                <option value="Boston Celtics">Boston Celtics</option>
-                <option value="Brooklyn Nets">Brooklyn Nets</option>
-                <option value="Charlotte Hornets">Charlotte Hornets</option>
-                <option value="Chicago Bulls">Chicago Bulls</option>
-                <option value="Cleveland Cavaliers">Cleveland Cavaliers</option>
-                <option value="Dallas Mavericks">Dallas Mavericks</option>
-                <option value="Denver Nuggets">Denver Nuggets</option>
-                <option value="Detroit Pistons">Detroit Pistons</option>
-                <option value="Golden State Warriors">Golden State Warriors</option>
-                <option value="Houston Rockets">Houston Rockets</option>
-                <option value="Indiana Pacers">Indiana Pacers</option>
-                <option value="Los Angeles Clippers">Los Angeles Clippers</option>
-                <option value="Los Angeles Lakers">Los Angeles Lakers</option>
-                <option value="Memphis Grizzlies">Memphis Grizzlies</option>
-                <option value="Miami Heat">Miami Heat</option>
-                <option value="Milwaukee Bucks">Milwaukee Bucks</option>
-                <option value="Minnesota Timberwolves">Minnesota Timberwolves</option>
-                <option value="New Orleans Pelicans">New Orleans Pelicans</option>
-                <option value="New York Knicks">New York Knicks</option>
-                <option value="Oklahoma City Thunder">Oklahoma City Thunder</option>
-                <option value="Orlando Magic">Orlando Magic</option>
-                <option value="Philadelphia 76ers">Philadelphia 76ers</option>
-                <option value="Phoenix Suns">Phoenix Suns</option>
-                <option value="Portland Trail Blazers">Portland Trail Blazers</option>
-                <option value="Sacramento Kings">Sacramento Kings</option>
-                <option value="San Antonio Spurs">San Antonio Spurs</option>
-                <option value="Toronto Raptors">Toronto Raptors</option>
-                <option value="Utah Jazz">Utah Jazz</option>
-                <option value="Washington Wizards">Washington Wizards</option>
-            </select>
+                <option value="23|Atlanta Hawks|ATL">Atlanta Hawks</option>
+                <option value="2|Boston Celtics|BOS">Boston Celtics</option>
+                <option value="49|Brooklyn Nets|BKN">Brooklyn Nets</option>
+                <option value="33|Charlotte Hornets|CHA">Charlotte Hornets</option>
+                <option value="27|Chicago Bulls|CHI">Chicago Bulls</option>
+                <option value="35|Cleveland Cavaliers|CLE">Cleveland Cavaliers</option>
+                <option value="40|Dallas Mavericks|DAL">Dallas Mavericks</option>
+                <option value="3|Denver Nuggets|DEN">Denver Nuggets</option>
+                <option value="25|Detroit Pistons|DET">Detroit Pistons</option>
+                <option value="43|Golden State Warriors|GSW">Golden State Warriors</option>
+                <option value="28|Houston Rockets|HOU">Houston Rockets</option>
+                <option value="36|Indiana Pacers|IND">Indiana Pacers</option>
+                <option value="30|Los Angeles Clippers|LAC">Los Angeles Clippers</option>
+                <option value="4|Los Angeles Lakers|LAL">Los Angeles Lakers</option>
+                <option value="42|Memphis Grizzlies|MEM">Memphis Grizzlies</option>
+                <option value="1|Miami Heat|MIA">Miami Heat</option>
+                <option value="39|Milwaukee Bucks|MIL">Milwaukee Bucks</option>
+                <option value="41|Minnesota Timberwolves|MIN">Minnesota Timberwolves</option>
+                <option value="64|New Orleans Pelicans|NOP">New Orleans Pelicans</option>
+                <option value="26|New York Knicks|NYK">New York Knicks</option>
+                <option value="38|Oklahoma City Thunder|OKC">Oklahoma City Thunder</option>
+                <option value="24|Orlando Magic|ORL">Orlando Magic</option>
+                <option value="71|Philadelphia 76ers|PHI">Philadelphia 76ers</option>
+                <option value="46|Phoenix Suns|PHX">Phoenix Suns</option>
+                <option value="31|Portland Trail Blazers|POR">Portland Trail Blazers</option>
+                <option value="32|Sacramento Kings|SAC">Sacramento Kings</option>
+                <option value="37|San Antonio Spurs|SAS">San Antonio Spurs</option>
+                <option value="34|Toronto Raptors|TOR">Toronto Raptors</option>
+                <option value="45|Utah Jazz|UTA">Utah Jazz</option>
+                <option value="50|Washington Wizards|WAS">Washington Wizards</option>
+            </select>            
             <button id="add-favorite-team-button">Add Favorite Team</button>
             <div id="message"></div>
         </div>
 
-        <div class="action-wrapper">
-            <h1>Sign Out</h1>
-            <form>
-                <input type="hidden" name="action" value="signOut"/>
-                <input id="sign-out-button" type="button" value="Sign out"/>
-            </form>
+        
+        <div class="form-container">
+            <label for="remove-team-select">Select Your Favorite Team:</label><br>
+            <select id="remove-team-select">
+                <option value="" disabled selected>Select a team</option>
+            </select>            
+            <button id="remove-favorite-team-button">Remove Favorite Team</button>
+            <div id="remove"></div>
         </div>
-    </body>
+
+        <div class="form-container">
+            <label for="favorite-nfl-team-select">Select Your Favorite NFL Team:</label><br>
+            <select id="favorite-nfl-team-select">
+                <option value="92736|Atlanta Falcons|ATL">Atlanta Falcons</option>
+                <option value="92743|Baltimore Ravens|BAL">Baltimore Ravens</option>
+                <option value="92733|Chicago Bears|CHI">Chicago Bears</option>
+                <option value="92730|Cincinnati Bengals|CIN">Cincinnati Bengals</option>
+                <option value="92741|Carolina Panthers|CAR">Carolina Panthers</option>
+                <option value="92745|Cleveland Browns|CLE">Cleveland Browns</option>
+                <option value="92746|Dallas Cowboys|DAL">Dallas Cowboys</option>
+                <option value="92764|Denver Broncos|DEN">Denver Broncos</option>
+                <option value="92742|Green Bay Packers|GB">Green Bay Packers</option>
+                <option value="92748|Houston Texans|HOU">Houston Texans</option>
+                <option value="92738|Indianapolis Colts|IND">Indianapolis Colts</option>
+                <option value="92732|Kansas City Chiefs|KC">Kansas City Chiefs</option>
+                <option value="92747|Los Angeles Chargers|LAC">Los Angeles Chargers</option>
+                <option value="92749|Los Angeles Rams|LAR">Los Angeles Rams</option>
+                <option value="92751|Minnesota Vikings|MIN">Minnesota Vikings</option>
+                <option value="92740|Buffalo Bills|BUF">Buffalo Bills</option>
+                <option value="92750|Philadelphia Eagles|PHI">Philadelphia Eagles</option>
+                <option value="92755|Pittsburgh Steelers|PIT">Pittsburgh Steelers</option>
+                <option value="92737|Las Vegas Raiders|LV">Las Vegas Raiders</option>
+                <option value="92767|New England Patriots|NE">New England Patriots</option>
+                <option value="92768|New Orleans Saints|NO">New Orleans Saints</option>
+                <option value="92752|New York Jets|NYJ">New York Jets</option>
+                <option value="92753|New York Giants|NYG">New York Giants</option>
+                <option value="92765|Arizona Cardinals|ARI">Arizona Cardinals</option>
+                <option value="92766|Washington Commanders|WAS">Washington Commanders</option>
+                <option value="92744|Seattle Seahawks|SEA">Seattle Seahawks</option>
+                <option value="92735|San Francisco 49ers|SF">San Francisco 49ers</option>
+                <option value="92769|Tennessee Titans|TEN">Tennessee Titans</option>
+                <option value="92734|Tampa Bay Buccaneers|TB">Tampa Bay Buccaneers</option>
+            </select>
+            <button id="add-favorite-nfl-team-button">Add Favorite NFL Team</button>
+            <div id="nfl-message"></div>
+        </div>
+        
+        <div class="form-container">
+            <label for="remove-nfl-team-select">Select Your Favorite NFL Team:</label><br>
+            <select id="remove-nfl-team-select">
+                <option value="" disabled selected>Select a team</option>
+            </select>
+            <button id="remove-favorite-nfl-team-button">Remove Favorite NFL Team</button>
+            <div id="remove-nfl"></div>
+        </div>
+        
+        
+        <script>
+        $(document).ready(function () {
+            // fills drop down with users fav teams
+            function populateFavoriteTeamsDropdown() {
+                $.ajax({
+                    url: 'api.php',
+                    method: 'POST',
+                    data: { action: 'getFavoriteTeams' },
+                    success: function (response) {
+                        console.log('Favorite Teams:', response);
+                        const select = $('#remove-team-select');
+                        select.empty();
+        
+                        if (response.success && response.favoriteTeams && response.favoriteTeams.length > 0) {
+                            response.favoriteTeams.forEach(team => {
+                                const teamOption = `
+                                    <option value="${team.id}|${team.name}|${team.abbreviation}">
+                                        ${team.name}
+                                    </option>
+                                `;
+                                select.append(teamOption);
+                            });
+                        } else {
+                            select.append('<option disabled>No favorite teams available</option>');
+                        }
+                    },
+                    error: function () {
+                        console.error('Failed to fetch favorite teams.');
+                        const select = $('#remove-team-select');
+                        select.empty();
+                        select.append('<option disabled>Error fetching teams</option>');
+                    }
+                });
+            }
+        
+            // fills drop down up on page load
+            populateFavoriteTeamsDropdown();
+        
+            // remove a fav team button 
+            $('#remove-favorite-team-button').click(function () {
+                const selectedOption = $('#remove-team-select').val();
+                if (!selectedOption) {
+                    alert('Please select a team to remove.');
+                    return;
+                }
+        
+                const [teamId, teamName] = selectedOption.split('|');
+        
+                // remove fav team ajax to API
+                $.ajax({
+                    url: 'api.php',
+                    method: 'POST',
+                    data: { action: 'removeFavoriteTeam', teamId },
+                    success: function (response) {
+                        if (response.success) {
+                            alert(`${teamName} removed from your favorite teams.`);
+                            location.reload(); // forces the page to reload
+                            // refill/update dropdown
+                            populateFavoriteTeamsDropdown();
+                        } else {
+                            alert('Failed to remove team: ' + (response.message || 'Unknown error'));
+                        }
+                    },
+                    error: function () {
+                        alert('Error removing favorite team.');
+                    }
+                });
+            });
+        });
+        </script>
+        
+        
+
+        <h2>Your Favorite NBA Teams:</h2>
+        <ul id="favorite-teams-list"></ul>
+
+        <h2>Your Favorite NFL Teams:</h2>
+        <ul id="favorite-nfl-teams-list"></ul>
+
+        <div class="action-wrapper">
+            <h2>Sign Out</h2>
+            <button id="sign-out-button">Sign Out</button>
+        </div>
+    </div>
+</body>
 </html>

@@ -5,6 +5,24 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Sports Standings Page</title>
         <style>
+
+            #nfl-standings-container table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+            }
+
+            #nfl-standings-container th, #nfl-standings-container td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }
+
+            #nfl-standings-container th {
+                background-color: #f4f4f4;
+                font-weight: bold;
+            }
+
             #standings-container table {
                 display: block !important;
                 visibility: visible !important;
@@ -100,6 +118,7 @@
                 });
 
                 // get the NBA standings
+                // AI used to help with this
                 $.ajax({
                     url: 'api.php',
                     method: 'POST',
@@ -107,7 +126,37 @@
                     success: function (response) {
                         console.log('Server Response:', response);
                         if (response.success && response.data) {
+                            const eastTeams = {};
+                            const westTeams = {};
+
+                            // Process response data
+                            response.data.forEach(conference => {
+                                conference.data.forEach(teamData => {
+                                    const team = teamData.team;
+                                    const teamId = team.id || team.name; // how teams are each unique
+                                    const statistics = teamData.statistics;
+
+                                    const teamStats = {
+                                        teamId,
+                                        position: statistics.find(stat => stat.displayName === "Position")?.value || "N/A",
+                                        wins: statistics.find(stat => stat.displayName === "Wins")?.value || "N/A",
+                                        losses: statistics.find(stat => stat.displayName === "Losses")?.value || "N/A",
+                                        displayName: team.displayName || team.name,
+                                        logo: team.logo || ''
+                                    };
+
+                                    // AI used for this section Determine the conference and store the most recent stats
+                                    if (conference.abbreviation === "EAST") {
+                                        eastTeams[teamId] = teamStats; // Overwrite if already exists
+                                    } else if (conference.abbreviation === "WEST") {
+                                        westTeams[teamId] = teamStats; // Overwrite if already exists
+                                    }
+                                });
+                            });
+
+                            // Generate HTML for Eastern Conference
                             let standingsHTML = `
+                                <h2>Eastern Conference</h2>
                                 <table>
                                     <thead>
                                         <tr>
@@ -120,31 +169,59 @@
                                     <tbody>
                             `;
 
-                            response.data.forEach(conference => {
-                                conference.data.forEach(teamData => {
-                                    const team = teamData.team;
-                                    const statistics = teamData.statistics;
-
-                                    const wins = statistics.find(stat => stat.displayName === "Wins")?.value || "N/A";
-                                    const losses = statistics.find(stat => stat.displayName === "Losses")?.value || "N/A";
-                                    const position = statistics.find(stat => stat.displayName === "Position")?.value || "N/A";
-
+                            Object.values(eastTeams)
+                                .sort((a, b) => a.position - b.position) // sorts by position (1-15)
+                                .forEach(team => {
                                     standingsHTML += `
                                         <tr>
-                                            <td>${position}</td>
+                                            <td>${team.position}</td>
                                             <td>
-                                                <img src="${team.logo || ''}" alt="${team.name}" width="30" />
-                                                ${team.displayName || team.name}
+                                                <img src="${team.logo}" alt="${team.displayName}" width="30" />
+                                                ${team.displayName}
                                             </td>
-                                            <td>${wins}</td>
-                                            <td>${losses}</td>
+                                            <td>${team.wins}</td>
+                                            <td>${team.losses}</td>
                                         </tr>
                                     `;
                                 });
-                            });
 
                             standingsHTML += `</tbody></table>`;
-                            $('#standings-container').html(standingsHTML);
+
+                            // Generate HTML for Western Conference
+                            let westernHTML = `
+                                <h2>Western Conference</h2>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Position</th>
+                                            <th>Team</th>
+                                            <th>Wins</th>
+                                            <th>Losses</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                            `;
+
+                            Object.values(westTeams)
+                                .sort((a, b) => a.position - b.position) // sorts by position (1-15)
+                                .forEach(team => {
+                                    westernHTML += `
+                                        <tr>
+                                            <td>${team.position}</td>
+                                            <td>
+                                                <img src="${team.logo}" alt="${team.displayName}" width="30" />
+                                                ${team.displayName}
+                                            </td>
+                                            <td>${team.wins}</td>
+                                            <td>${team.losses}</td>
+                                        </tr>
+                                    `;
+                                });
+
+                            westernHTML += `</tbody></table>`;
+
+                            // add both east and west to the page
+                            $('#standings-container').html(standingsHTML + westernHTML);
                         } else {
                             console.error('Invalid response structure:', response);
                             $('#standings-container').html('<p class="error">Invalid data received.</p>');
@@ -154,6 +231,98 @@
                         $('#standings-container').html('<p class="error">Failed to fetch standings.</p>');
                     }
                 });
+    // get the NFL standings
+    $(document).ready(function () {
+    $.ajax({
+        url: 'api.php',
+        method: 'POST',
+        data: { action: 'fetchNFLStandings' },
+        success: function (response) {
+            if (response.success && response.data) {
+                console.log("NFL Standings Response:", response.data);
+
+                const uniqueTeams = {}; // object that is used to store unique teams
+
+                // go through the response data to process teams
+                response.data.forEach(conference => {
+                    conference.data.forEach(teamData => {
+                        const team = teamData.team;
+                        const teamId = team.id; // team identifier different for each team
+                        const statistics = teamData.statistics;
+
+                        // get the relevant statistics that are returned (wins,losses,etc.)
+                        const wins = parseInt(statistics.find(stat => stat.displayName === "Wins")?.value || "0");
+                        const losses = parseInt(statistics.find(stat => stat.displayName === "Losses")?.value || "0");
+                        const totalGames = wins + losses; // get total games played
+
+                        const teamStats = {
+                            name: team.displayName,
+                            logo: team.logo,
+                            wins: wins,
+                            losses: losses,
+                            pointDifferential: statistics.find(stat => stat.displayName === "Point Differential")?.value || "0",
+                            streak: statistics.find(stat => stat.displayName === "Streak")?.value || "-",
+                            totalGames: totalGames // total games as a property
+                        };
+
+                        // makes sure the latest version from API is pulled (most games)
+                        if (!uniqueTeams[teamId] || uniqueTeams[teamId].totalGames < totalGames) {
+                            uniqueTeams[teamId] = teamStats;
+                        }
+                    });
+                });
+
+                // sorts teams by highest to lowest total wins (descending)
+                const sortedTeams = Object.values(uniqueTeams).sort((a, b) => b.wins - a.wins);
+
+                // Generate HTML for the standings AI used for this format
+                let standingsHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Team</th>
+                                <th>Wins</th>
+                                <th>Losses</th>
+                                <th>Point Differential</th>
+                                <th>Streak</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                sortedTeams.forEach(team => {
+                    standingsHTML += `
+                        <tr>
+                            <td>
+                                <img src="${team.logo}" alt="${team.name}" width="30" />
+                                ${team.name}
+                            </td>
+                            <td>${team.wins}</td>
+                            <td>${team.losses}</td>
+                            <td>${team.pointDifferential}</td>
+                            <td>${team.streak}</td>
+                        </tr>
+                    `;
+                });
+
+                standingsHTML += `
+                        </tbody>
+                    </table>
+                `;
+
+                // Inject the standings into the page
+                $('#nfl-standings-container').html(standingsHTML);
+            } else {
+                console.error("Error:", response.error);
+                $('#nfl-standings-container').html('<p class="error">' + response.error + '</p>');
+            }
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.error("AJAX Error:", textStatus, errorThrown);
+            $('#nfl-standings-container').html('<p class="error">Failed to fetch NFL standings.</p>');
+        }
+    });
+});
 
                 // sign out button back to log in screen
                 $('#sign-out-button').click(function(e) {
@@ -170,13 +339,21 @@
             <a href="profile.html">Profile</a>
         </div>
         <div id="user-name" class="user-info"></div>
-        <h1>Welcome!</h1>
-        <p>You have successfully signed in.</p>
+        <h1>Standings Page!</h1>
+        <p>View the standings across the NBA and NFL.</p>
 
-        <div id="nba-highlights">
+        <div id="nba-standings">
             <h2>NBA Standings</h2>
             <div id="standings-container"></div>
         </div>
+
+        <div id="nfl-standings">
+            <h2>NFL Standings</h2>
+            <div id="nfl-standings-container">
+            </div>
+        </div>
+        
+        
 
         <div class="action-wrapper">
             <h1>Sign Out</h1>
